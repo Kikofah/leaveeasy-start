@@ -1,30 +1,43 @@
 // ─────────────────────────────────────────────────────────────
 // js/leave-request-detail.js — หน้าที่ 3 รายละเอียดใบลา
-// สัปดาห์ที่ 6 (ต้นสัปดาห์): อ่านจากข้อมูลปลอม และเปลี่ยนสถานะในหน่วยความจำ
+// อ่านใบลาและความเห็นจริงจาก Firestore
+// (ปุ่มอนุมัติ/ไม่อนุมัติ และส่งความเห็น ยังเปลี่ยนแค่ในหน่วยความจำ
+//  ยังไม่เขียนกลับ Firestore จริง — เป็นงานสัปดาห์ที่ 7)
 // ─────────────────────────────────────────────────────────────
 
 (function () {
   var รหัสใบลา = ค่าจากURL("id");
   var กล่องใบลา = document.getElementById("กล่องใบลา");
   var กล่องความเห็น = document.getElementById("กล่องความเห็น");
+  var ใบ, ความเห็น;
 
-  // หาใบลาจากข้อมูลปลอม บวกกับใบที่เพิ่งยื่นในหน้าที่ 2
-  var ใบลาที่ยื่นใหม่ = JSON.parse(sessionStorage.getItem("ใบลาที่ยื่นใหม่") || "[]");
-  var ใบ = window.LEAVE_DATA.leaveRequests.concat(ใบลาที่ยื่นใหม่)
-    .find(function (x) { return x.id === รหัสใบลา; });
+  var เอกสารใบลา = db.collection("leaveRequests").doc(รหัสใบลา);
 
-  if (!ใบ) {
-    กล่องใบลา.innerHTML = "<p>ไม่พบใบขอลาที่ต้องการ — อาจถูกลบไปแล้ว หรือลิงก์ไม่ถูกต้อง</p>";
-    return;
-  }
+  Promise.all([
+    เอกสารใบลา.get(),
+    เอกสารใบลา.collection("approvals").get()
+  ]).then(function (ผลลัพธ์) {
+    var สแนปช็อตใบลา = ผลลัพธ์[0];
+    var สแนปช็อตความเห็น = ผลลัพธ์[1];
 
-  var ความเห็น = window.LEAVE_DATA.approvals.filter(function (c) { return c.requestId === ใบ.id; });
+    if (!สแนปช็อตใบลา.exists) {
+      กล่องใบลา.innerHTML = "<p>ไม่พบใบขอลาที่ต้องการ — อาจถูกลบไปแล้ว หรือลิงก์ไม่ถูกต้อง</p>";
+      return;
+    }
 
-  วาดใบลา();
-  วาดความเห็น();
-  กล่องความเห็น.classList.remove("hidden");
+    ใบ = Object.assign({ id: สแนปช็อตใบลา.id }, สแนปช็อตใบลา.data());
+    ความเห็น = สแนปช็อตความเห็น.docs.map(function (เอกสาร) {
+      return Object.assign({ id: เอกสาร.id }, เอกสาร.data());
+    });
 
-  document.getElementById("ปุ่มส่งความเห็น").addEventListener("click", ส่งความเห็น);
+    วาดใบลา();
+    วาดความเห็น();
+    กล่องความเห็น.classList.remove("hidden");
+
+    document.getElementById("ปุ่มส่งความเห็น").addEventListener("click", ส่งความเห็น);
+  }).catch(function (ข้อผิดพลาด) {
+    กล่องใบลา.innerHTML = "<p>โหลดข้อมูลจาก Firestore ไม่สำเร็จ: " + esc(ข้อผิดพลาด.message) + "</p>";
+  });
 
   // ── วาดข้อมูลใบลาลงหน้าจอ ──
   function วาดใบลา() {
@@ -105,7 +118,6 @@
     // สัปดาห์ที่ 6 ยังไม่มีล็อกอิน จึงสมมติว่าผู้เขียนคือ สมหญิง รักงาน
     ความเห็น.push({
       id: "ap-ใหม่-" + Date.now(),
-      requestId: ใบ.id,
       authorId: "u002", authorName: "สมหญิง รักงาน",
       message: ข้อความ,
       createdAt: เวลาตอนนี้()

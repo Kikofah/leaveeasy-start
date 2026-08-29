@@ -30,6 +30,8 @@
   });
 
   function แสดงตาราง(รายการ) {
+    document.getElementById("จำนวนทั้งหมด").textContent = "ทั้งหมด " + รายการ.length + " ใบ";
+
     if (รายการ.length === 0) {
       กล่อง.innerHTML = "<p>ยังไม่มีใบขอลาในระบบ</p>";
       return;
