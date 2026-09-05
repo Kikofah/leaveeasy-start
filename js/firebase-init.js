@@ -1,8 +1,8 @@
 // ─────────────────────────────────────────────────────────────
-// js/firebase-init.js — เชื่อมต่อ Firebase / Firestore
+// js/firebase-init.js — เชื่อมต่อ Firebase / Firestore / Auth
 //
-// ต้องโหลดหลัง <script> ของ firebase-app-compat.js และ
-// firebase-firestore-compat.js เสมอ (ดูตัวอย่างใน leave-requests.html)
+// ต้องโหลดหลัง <script> ของ firebase-app-compat.js, firebase-firestore-compat.js
+// และ firebase-auth-compat.js เสมอ (ดูตัวอย่างใน leave-requests.html)
 //
 // apiKey ของ Firebase web config ไม่ใช่ความลับ — ฝั่งเบราว์เซอร์เห็นได้เสมอ
 // ความปลอดภัยจริงมาจาก Security Rules (จะเขียนสัปดาห์ที่ 8)
@@ -20,3 +20,4 @@ var firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 var db = firebase.firestore();
+var auth = firebase.auth();

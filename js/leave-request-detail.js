@@ -2,40 +2,58 @@
 // js/leave-request-detail.js — หน้าที่ 3 รายละเอียดใบลา
 // อ่านใบลาและความเห็นจริงจาก Firestore
 // ปุ่มอนุมัติ/ไม่อนุมัติเขียนสถานะกลับ Firestore จริง (ส่งความเห็นยังเปลี่ยนแค่ในหน่วยความจำ)
+// ผู้ขอลาที่เป็น employee เปิดใบลาของคนอื่นไม่ได้ (ผู้อนุมัติ/ฝ่ายบุคคลเปิดได้ทุกใบ)
 // ─────────────────────────────────────────────────────────────
 
 (function () {
   var รหัสใบลา = ค่าจากURL("id");
   var กล่องใบลา = document.getElementById("กล่องใบลา");
   var กล่องความเห็น = document.getElementById("กล่องความเห็น");
-  var ใบ, ความเห็น;
+  var ใบ, ความเห็น, ผู้ใช้ปัจจุบัน;
 
   var เอกสารใบลา = db.collection("leaveRequests").doc(รหัสใบลา);
 
-  Promise.all([
-    เอกสารใบลา.get(),
-    เอกสารใบลา.collection("approvals").get()
-  ]).then(function (ผลลัพธ์) {
-    var สแนปช็อตใบลา = ผลลัพธ์[0];
-    var สแนปช็อตความเห็น = ผลลัพธ์[1];
-
-    if (!สแนปช็อตใบลา.exists) {
-      กล่องใบลา.innerHTML = "<p>ไม่พบใบขอลาที่ต้องการ — อาจถูกลบไปแล้ว หรือลิงก์ไม่ถูกต้อง</p>";
+  firebase.auth().onAuthStateChanged(function (ผู้ใช้) {
+    if (!ผู้ใช้) {
+      location.href = "login.html";
       return;
     }
+    ผู้ใช้ปัจจุบัน = ผู้ใช้;
 
-    ใบ = Object.assign({ id: สแนปช็อตใบลา.id }, สแนปช็อตใบลา.data());
-    ความเห็น = สแนปช็อตความเห็น.docs.map(function (เอกสาร) {
-      return Object.assign({ id: เอกสาร.id }, เอกสาร.data());
+    Promise.all([
+      เอกสารใบลา.get(),
+      เอกสารใบลา.collection("approvals").get(),
+      db.collection("users").doc(ผู้ใช้.uid).get()
+    ]).then(function (ผลลัพธ์) {
+      var สแนปช็อตใบลา = ผลลัพธ์[0];
+      var สแนปช็อตความเห็น = ผลลัพธ์[1];
+      var สแนปช็อตผู้ใช้ = ผลลัพธ์[2];
+
+      if (!สแนปช็อตใบลา.exists) {
+        กล่องใบลา.innerHTML = "<p>ไม่พบใบขอลาที่ต้องการ — อาจถูกลบไปแล้ว หรือลิงก์ไม่ถูกต้อง</p>";
+        return;
+      }
+
+      ใบ = Object.assign({ id: สแนปช็อตใบลา.id }, สแนปช็อตใบลา.data());
+
+      var บทบาท = สแนปช็อตผู้ใช้.exists ? สแนปช็อตผู้ใช้.data().role : "employee";
+      if (บทบาท === "employee" && ใบ.requesterId !== ผู้ใช้.uid) {
+        กล่องใบลา.innerHTML = "<p>ไม่มีสิทธิ์ดูใบลานี้ — ใบนี้ไม่ใช่ของคุณ</p>";
+        return;
+      }
+
+      ความเห็น = สแนปช็อตความเห็น.docs.map(function (เอกสาร) {
+        return Object.assign({ id: เอกสาร.id }, เอกสาร.data());
+      });
+
+      วาดใบลา();
+      วาดความเห็น();
+      กล่องความเห็น.classList.remove("hidden");
+
+      document.getElementById("ปุ่มส่งความเห็น").addEventListener("click", ส่งความเห็น);
+    }).catch(function (ข้อผิดพลาด) {
+      กล่องใบลา.innerHTML = "<p>โหลดข้อมูลจาก Firestore ไม่สำเร็จ: " + esc(ข้อผิดพลาด.message) + "</p>";
     });
-
-    วาดใบลา();
-    วาดความเห็น();
-    กล่องความเห็น.classList.remove("hidden");
-
-    document.getElementById("ปุ่มส่งความเห็น").addEventListener("click", ส่งความเห็น);
-  }).catch(function (ข้อผิดพลาด) {
-    กล่องใบลา.innerHTML = "<p>โหลดข้อมูลจาก Firestore ไม่สำเร็จ: " + esc(ข้อผิดพลาด.message) + "</p>";
   });
 
   // ── วาดข้อมูลใบลาลงหน้าจอ ──
@@ -141,10 +159,10 @@
     }
     เตือน.classList.add("hidden");
 
-    // สัปดาห์ที่ 6 ยังไม่มีล็อกอิน จึงสมมติว่าผู้เขียนคือ สมหญิง รักงาน
     ความเห็น.push({
       id: "ap-ใหม่-" + Date.now(),
-      authorId: "u002", authorName: "สมหญิง รักงาน",
+      authorId: ผู้ใช้ปัจจุบัน.uid,
+      authorName: ผู้ใช้ปัจจุบัน.displayName || ผู้ใช้ปัจจุบัน.email,
       message: ข้อความ,
       createdAt: เวลาตอนนี้()
     });

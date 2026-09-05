@@ -1,6 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // js/new-leave-request.js — หน้าที่ 2 ยื่นใบลาใหม่
 // สัปดาห์ที่ 7: ประเภทการลาอ่านจาก Firestore จริง และบันทึกใบลาใหม่ลง Firestore จริง
+// ผู้ขอลาคือคนที่ล็อกอินอยู่จริง (ต้องล็อกอินก่อนถึงเข้าหน้านี้ได้)
 // ─────────────────────────────────────────────────────────────
 
 (function () {
@@ -9,6 +10,15 @@
   var กล่องเตือน = document.getElementById("ข้อความเตือน");
   var ปุ่มบันทึก = document.getElementById("ปุ่มบันทึก");
   var ประเภทการลาทั้งหมด = [];
+  var ผู้ใช้ปัจจุบัน = null;
+
+  firebase.auth().onAuthStateChanged(function (ผู้ใช้) {
+    if (!ผู้ใช้) {
+      location.href = "login.html";
+      return;
+    }
+    ผู้ใช้ปัจจุบัน = ผู้ใช้;
+  });
 
   // เติมรายการเลื่อนลงด้วยประเภทการลาจริงจาก Firestore
   db.collection("leaveTypes").get().then(function (สแนปช็อต) {
@@ -45,15 +55,19 @@
       เตือน("วันที่สิ้นสุดต้องไม่มาก่อนวันที่เริ่มลา");
       return;
     }
+    if (!ผู้ใช้ปัจจุบัน) {
+      เตือน("ระบบยังตรวจสอบการล็อกอินไม่เสร็จ กรุณารอสักครู่แล้วลองกดบันทึกใหม่");
+      return;
+    }
 
     var ประเภท = ประเภทการลาทั้งหมด.find(function (t) { return t.id === ค่า.leaveTypeId; });
 
-    // สัปดาห์ที่ 7 ยังไม่มีล็อกอิน จึงสมมติว่าผู้ขอลาคือ สมชาย ใจดี
     var ใบใหม่ = {
       title: ค่า.title,
       reason: ค่า.reason,
       status: "รอพิจารณา",                       // ใบใหม่เริ่มที่ รอพิจารณา เสมอ
-      requesterId: "u001", requesterName: "สมชาย ใจดี",
+      requesterId: ผู้ใช้ปัจจุบัน.uid,
+      requesterName: ผู้ใช้ปัจจุบัน.displayName || ผู้ใช้ปัจจุบัน.email,
       approverId: "",      approverName: "",
       leaveTypeId: ประเภท.id, leaveTypeName: ประเภท.name,
       startDate: ค่า.startDate,
