@@ -1,8 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // js/leave-request-detail.js — หน้าที่ 3 รายละเอียดใบลา
 // อ่านใบลาและความเห็นจริงจาก Firestore
-// (ปุ่มอนุมัติ/ไม่อนุมัติ และส่งความเห็น ยังเปลี่ยนแค่ในหน่วยความจำ
-//  ยังไม่เขียนกลับ Firestore จริง — เป็นงานสัปดาห์ที่ 7)
+// ปุ่มอนุมัติ/ไม่อนุมัติเขียนสถานะกลับ Firestore จริง (ส่งความเห็นยังเปลี่ยนแค่ในหน่วยความจำ)
 // ─────────────────────────────────────────────────────────────
 
 (function () {
@@ -56,15 +55,16 @@
       return '<div class="field-row"><span class="k">' + r[0] + "</span><span>" + r[1] + "</span></div>";
     }).join("");
 
-    // ปุ่มอนุมัติ / ไม่อนุมัติ ขึ้นเฉพาะใบที่ยังรอพิจารณา
+    // ปุ่มอนุมัติ / ไม่อนุมัติ / ลบ ขึ้นเฉพาะใบที่ยังรอพิจารณา
     if (ใบ.status === "รอพิจารณา") {
       html +=
         '<div class="btn-row">' +
         '<button type="button" class="btn-ok" id="ปุ่มอนุมัติ">อนุมัติ</button>' +
         '<button type="button" class="btn-danger" id="ปุ่มไม่อนุมัติ">ไม่อนุมัติ</button>' +
+        '<button type="button" class="btn-danger" id="ปุ่มลบ">ลบใบลานี้</button>' +
         "</div>";
     } else {
-      html += '<p class="hint">ใบนี้พิจารณาแล้ว จึงเปลี่ยนสถานะต่อไม่ได้</p>';
+      html += '<p class="hint">ใบนี้พิจารณาแล้ว จึงเปลี่ยนสถานะและลบต่อไม่ได้</p>';
     }
 
     กล่องใบลา.innerHTML = html;
@@ -72,18 +72,44 @@
     if (ใบ.status === "รอพิจารณา") {
       document.getElementById("ปุ่มอนุมัติ").addEventListener("click", function () { เปลี่ยนสถานะ("อนุมัติ"); });
       document.getElementById("ปุ่มไม่อนุมัติ").addEventListener("click", function () { เปลี่ยนสถานะ("ไม่อนุมัติ"); });
+      document.getElementById("ปุ่มลบ").addEventListener("click", ลบใบลา);
     }
   }
 
-  // ── เปลี่ยนสถานะ (สัปดาห์นี้เปลี่ยนแค่ในหน่วยความจำ) ──
+  // ── เปลี่ยนสถานะ ──
   function เปลี่ยนสถานะ(สถานะใหม่) {
     // กฎ: จะไม่อนุมัติได้ ต้องมีความเห็นอย่างน้อย 1 รายการก่อน
     if (สถานะใหม่ === "ไม่อนุมัติ" && ความเห็น.length === 0) {
       alert("ต้องเขียนความเห็นอย่างน้อย 1 รายการก่อน จึงจะกดไม่อนุมัติได้");
       return;
     }
-    ใบ.status = สถานะใหม่;   // แก้เฉพาะช่อง status เท่านั้น
-    วาดใบลา();
+
+    document.getElementById("ปุ่มอนุมัติ").disabled = true;
+    document.getElementById("ปุ่มไม่อนุมัติ").disabled = true;
+
+    // .update() แก้เฉพาะช่องที่ระบุเท่านั้น ช่องอื่นในเอกสารเดิมไม่ถูกแตะ
+    เอกสารใบลา.update({ status: สถานะใหม่ }).then(function () {
+      ใบ.status = สถานะใหม่;
+      วาดใบลา();
+    }).catch(function (ข้อผิดพลาด) {
+      alert("เปลี่ยนสถานะไม่สำเร็จ: " + ข้อผิดพลาด.message);
+      document.getElementById("ปุ่มอนุมัติ").disabled = false;
+      document.getElementById("ปุ่มไม่อนุมัติ").disabled = false;
+    });
+  }
+
+  // ── ลบใบลานี้ ──
+  function ลบใบลา() {
+    if (!confirm("ยืนยันลบใบลานี้ใช่ไหม? ลบแล้วกู้คืนไม่ได้")) return;
+
+    document.getElementById("ปุ่มลบ").disabled = true;
+
+    เอกสารใบลา.delete().then(function () {
+      location.href = "leave-requests.html";
+    }).catch(function (ข้อผิดพลาด) {
+      alert("ลบไม่สำเร็จ: " + ข้อผิดพลาด.message);
+      document.getElementById("ปุ่มลบ").disabled = false;
+    });
   }
 
   // ── รายการความเห็น เรียงจากเก่าไปใหม่ ──
