@@ -16,6 +16,7 @@ desktop.ini
 *.log
 .vscode/
 .idea/
+.firebase/
 
 
 # ── ไฟล์ตั้งค่าและไฟล์ที่มีคีย์/ค่าลับ — ห้ามส่งขึ้น GitHub เด็ดขาด ──
@@ -28,7 +29,6 @@ desktop.ini
 *secret*
 *serviceAccountKey*.json
 *firebase-adminsdk*.json
-.firebaserc
 firebase-debug.log
 config.local.js
 config.local.json

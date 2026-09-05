@@ -1,6 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // js/leave-requests.js — หน้าที่ 1 รายการใบลา
 // สัปดาห์ที่ 6: อ่านข้อมูลจริงจาก Firestore (โฟลเดอร์ leaveRequests)
+// employee เห็นเฉพาะใบลาของตัวเอง · manager/hr เห็นทุกใบ (ตาม ACL.md)
 // ─────────────────────────────────────────────────────────────
 
 (function () {
@@ -13,20 +14,34 @@
       "กำลังแสดงเฉพาะใบลาที่สถานะ " + สถานะที่กรอง + " · กดเมนู รายการใบลา เพื่อดูทั้งหมด";
   }
 
-  var คำสั่งดึงข้อมูล = db.collection("leaveRequests");
-  if (สถานะที่กรอง) {
-    คำสั่งดึงข้อมูล = คำสั่งดึงข้อมูล.where("status", "==", สถานะที่กรอง);
-  }
+  firebase.auth().onAuthStateChanged(function (ผู้ใช้) {
+    if (!ผู้ใช้) {
+      location.href = "login.html";
+      return;
+    }
 
-  คำสั่งดึงข้อมูล.get().then(function (สแนปช็อต) {
-    var รายการ = สแนปช็อต.docs.map(function (เอกสาร) {
-      var ข้อมูล = เอกสาร.data();
-      ข้อมูล.id = เอกสาร.id;
-      return ข้อมูล;
+    db.collection("users").doc(ผู้ใช้.uid).get().then(function (สแนปช็อตผู้ใช้) {
+      var บทบาท = สแนปช็อตผู้ใช้.exists ? สแนปช็อตผู้ใช้.data().role : "employee";
+
+      var คำสั่งดึงข้อมูล = db.collection("leaveRequests");
+      if (บทบาท === "employee") {
+        คำสั่งดึงข้อมูล = คำสั่งดึงข้อมูล.where("requesterId", "==", ผู้ใช้.uid);
+      }
+      if (สถานะที่กรอง) {
+        คำสั่งดึงข้อมูล = คำสั่งดึงข้อมูล.where("status", "==", สถานะที่กรอง);
+      }
+
+      return คำสั่งดึงข้อมูล.get();
+    }).then(function (สแนปช็อต) {
+      var รายการ = สแนปช็อต.docs.map(function (เอกสาร) {
+        var ข้อมูล = เอกสาร.data();
+        ข้อมูล.id = เอกสาร.id;
+        return ข้อมูล;
+      });
+      แสดงตาราง(รายการ);
+    }).catch(function (ข้อผิดพลาด) {
+      กล่อง.innerHTML = "<p>โหลดข้อมูลจาก Firestore ไม่สำเร็จ: " + esc(ข้อผิดพลาด.message) + "</p>";
     });
-    แสดงตาราง(รายการ);
-  }).catch(function (ข้อผิดพลาด) {
-    กล่อง.innerHTML = "<p>โหลดข้อมูลจาก Firestore ไม่สำเร็จ: " + esc(ข้อผิดพลาด.message) + "</p>";
   });
 
   function แสดงตาราง(รายการ) {
