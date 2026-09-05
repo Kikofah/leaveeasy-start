@@ -28,9 +28,11 @@
   if (ที่วาง) ที่วาง.innerHTML = html;
 
   // แสดงชื่อคนที่ล็อกอินอยู่ + ปุ่มออกจากระบบ (หรือลิงก์เข้าสู่ระบบถ้ายังไม่ได้ล็อกอิน)
+  // เมนู "ประเภทการลา" โชว์เฉพาะฝ่ายบุคคล (hr) ตาม ACL.md
   if (typeof firebase !== "undefined" && firebase.auth) {
     firebase.auth().onAuthStateChanged(function (ผู้ใช้) {
       var กล่องผู้ใช้ = document.getElementById("navUser");
+      var ลิงก์ประเภทการลา = document.querySelector('#nav a[href="leave-types.html"]');
       if (!กล่องผู้ใช้) return;
       กล่องผู้ใช้.innerHTML = "";
 
@@ -49,11 +51,20 @@
         กล่องผู้ใช้.appendChild(ป้ายชื่อ);
         กล่องผู้ใช้.appendChild(document.createTextNode(" · "));
         กล่องผู้ใช้.appendChild(ปุ่มออก);
+
+        if (ลิงก์ประเภทการลา && typeof db !== "undefined") {
+          db.collection("users").doc(ผู้ใช้.uid).get().then(function (สแนปช็อต) {
+            var บทบาท = สแนปช็อต.exists ? สแนปช็อต.data().role : "employee";
+            ลิงก์ประเภทการลา.classList.toggle("hidden", บทบาท !== "hr");
+          });
+        }
       } else {
         var ลิงก์เข้าสู่ระบบ = document.createElement("a");
         ลิงก์เข้าสู่ระบบ.href = "login.html";
         ลิงก์เข้าสู่ระบบ.textContent = "เข้าสู่ระบบ";
         กล่องผู้ใช้.appendChild(ลิงก์เข้าสู่ระบบ);
+
+        if (ลิงก์ประเภทการลา) ลิงก์ประเภทการลา.classList.add("hidden");
       }
     });
   }

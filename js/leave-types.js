@@ -1,6 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // js/leave-types.js — หน้าที่ 4 จัดการประเภทการลา
 // สัปดาห์ที่ 6 (ต้นสัปดาห์): เพิ่ม แก้ ลบ ในหน่วยความจำเท่านั้น
+// เข้าหน้านี้ได้เฉพาะคนที่ล็อกอินและมี role เป็น hr เท่านั้น (ตาม ACL.md)
 // ─────────────────────────────────────────────────────────────
 
 (function () {
@@ -9,8 +10,23 @@
   var ช่องชื่อใหม่ = document.getElementById("ชื่อประเภทใหม่");
   var กล่องเตือน = document.getElementById("เตือนประเภท");
 
-  วาดตาราง();
-  document.getElementById("ปุ่มเพิ่ม").addEventListener("click", เพิ่มประเภท);
+  firebase.auth().onAuthStateChanged(function (ผู้ใช้) {
+    if (!ผู้ใช้) {
+      location.href = "login.html";
+      return;
+    }
+
+    db.collection("users").doc(ผู้ใช้.uid).get().then(function (สแนปช็อต) {
+      var บทบาท = สแนปช็อต.exists ? สแนปช็อต.data().role : "employee";
+      if (บทบาท !== "hr") {
+        document.querySelector(".container").innerHTML =
+          "<h1>จัดการประเภทการลา</h1><p>ไม่มีสิทธิ์เข้าหน้านี้ — เฉพาะฝ่ายบุคคลเท่านั้น</p>";
+        return;
+      }
+      วาดตาราง();
+      document.getElementById("ปุ่มเพิ่ม").addEventListener("click", เพิ่มประเภท);
+    });
+  });
 
   function วาดตาราง() {
     if (รายการ.length === 0) {
