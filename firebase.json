@@ -13,7 +13,6 @@
       "**/node_modules/**",
       "seed.html",
       "js/seed.js",
-      "**/config.local.js",
       "**/*.env",
       "**/*secret*"
     ]
