@@ -74,6 +74,7 @@ leaveeasy-spec.md             📄 ข้อกำหนดของระบบ
 
 ## 🔗 ลิงก์
 
+- 🌐 **เว็บที่ deploy จริง** — https://leaveeasy-witchudakhamsom.web.app
 - 📚 **คลังสื่อการสอน Module 2** — https://cnacha-mfu.github.io/raise2-module2/
 - 💬 **จองคิว Consult รายคน** — https://raise2-58508.web.app
 - 🧪 **ดูหน้าตา prototype ก่อน** — https://cnacha-mfu.github.io/raise2-module2/materials/shared/prototypes/leaveeasy/
