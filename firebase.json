@@ -12,7 +12,10 @@
       ".claude/**",
       "**/node_modules/**",
       "seed.html",
-      "js/seed.js"
+      "js/seed.js",
+      "**/config.local.js",
+      "**/*.env",
+      "**/*secret*"
     ]
   }
 }
