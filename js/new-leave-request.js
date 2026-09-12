@@ -9,6 +9,8 @@
   var ช่องประเภท = document.getElementById("leaveTypeId");
   var กล่องเตือน = document.getElementById("ข้อความเตือน");
   var ปุ่มบันทึก = document.getElementById("ปุ่มบันทึก");
+  var ปุ่มAI = document.getElementById("ปุ่มAI");
+  var กล่องAI = document.getElementById("กล่องAI");
   var ประเภทการลาทั้งหมด = [];
   var ผู้ใช้ปัจจุบัน = null;
 
@@ -34,6 +36,89 @@
   }).catch(function (ข้อผิดพลาด) {
     เตือน("โหลดประเภทการลาจาก Firestore ไม่สำเร็จ: " + ข้อผิดพลาด.message);
   });
+
+  ปุ่มAI.addEventListener("click", จัดประเภทด้วยAI);
+
+  function แจ้งAI(ข้อความ, ระดับ) {
+    กล่องAI.className = "alert alert-" + (ระดับ || "ai");
+    กล่องAI.textContent = ข้อความ;
+  }
+
+  function จัดประเภทด้วยAI() {
+    var เหตุผล = document.getElementById("reason").value.trim();
+
+    if (!เหตุผล) {
+      แจ้งAI("พิมพ์เหตุผลการลาก่อน แล้วค่อยกดให้ AI ช่วยจัดประเภท", "warn");
+      return;
+    }
+    if (ประเภทการลาทั้งหมด.length === 0) {
+      แจ้งAI("ยังโหลดรายชื่อประเภทการลาจาก Firestore ไม่เสร็จ กรุณารอสักครู่แล้วลองใหม่", "warn");
+      return;
+    }
+
+    var คีย์ = window.OPENROUTER_API_KEY || localStorage.getItem("openrouter_api_key");
+    if (!คีย์) {
+      คีย์ = prompt("ใส่ OpenRouter API Key (จะถูกเก็บไว้ในเบราว์เซอร์นี้เท่านั้น ไม่ถูกบันทึกลงไฟล์)");
+      if (!คีย์) return;
+      localStorage.setItem("openrouter_api_key", คีย์);
+    }
+
+    ปุ่มAI.disabled = true;
+    แจ้งAI("กำลังถาม AI…", "ai");
+
+    var รายชื่อประเภท = ประเภทการลาทั้งหมด.map(function (t) {
+      return { id: t.id, name: t.name };
+    });
+
+    fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + คีย์,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-lite",
+        messages: [
+          {
+            role: "system",
+            content:
+              "คุณคือผู้ช่วยจัดประเภทการลา จะได้รับเหตุผลการลาและรายชื่อประเภทการลาที่มีอยู่จริงในระบบเท่านั้น " +
+              "ให้เลือกประเภทที่ตรงที่สุดหนึ่งประเภทจากรายการที่ให้มา แล้วตอบกลับด้วย id ของประเภทนั้นเพียงอย่างเดียว ห้ามตอบอย่างอื่นเพิ่ม " +
+              "ถ้าไม่มีประเภทไหนตรงหรือไม่มั่นใจ ให้ตอบคำว่า ไม่แน่ใจ เท่านั้น"
+          },
+          {
+            role: "user",
+            content: JSON.stringify({ เหตุผลการลา: เหตุผล, ประเภทการลาที่มีอยู่จริง: รายชื่อประเภท })
+          }
+        ]
+      })
+    }).then(function (response) {
+      return response.json().then(function (data) {
+        if (!response.ok) {
+          throw new Error((data.error && data.error.message) || ("HTTP " + response.status));
+        }
+        return data;
+      });
+    }).then(function (data) {
+      var คำตอบ = ((data.choices && data.choices[0] && data.choices[0].message.content) || "").trim();
+      var ที่ตรงกัน = ประเภทการลาทั้งหมด.find(function (t) { return t.id === คำตอบ; });
+
+      if (!ที่ตรงกัน) {
+        ที่ตรงกัน = ประเภทการลาทั้งหมด.find(function (t) { return t.name === คำตอบ; });
+      }
+
+      if (ที่ตรงกัน) {
+        ช่องประเภท.value = ที่ตรงกัน.id;
+        แจ้งAI("AI แนะนำ: " + ที่ตรงกัน.name + " — ตรวจสอบและกดบันทึกได้เลย", "ai");
+      } else {
+        แจ้งAI("AI ไม่สามารถจัดประเภทให้ได้ชัดเจน กรุณาเลือกเอง", "warn");
+      }
+    }).catch(function (ข้อผิดพลาด) {
+      แจ้งAI("เรียก AI ไม่สำเร็จ: " + ข้อผิดพลาด.message, "error");
+    }).finally(function () {
+      ปุ่มAI.disabled = false;
+    });
+  }
 
   ฟอร์ม.addEventListener("submit", function (e) {
     e.preventDefault();

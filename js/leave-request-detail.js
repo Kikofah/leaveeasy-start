@@ -79,6 +79,17 @@
     var อนุมัติได้ = (บทบาทปัจจุบัน === "manager" || บทบาทปัจจุบัน === "hr") && !เป็นเจ้าของใบเอง;
     var ลบได้ = บทบาทปัจจุบัน === "hr" || เป็นเจ้าของใบเอง;
 
+    // ให้หัวหน้าอ่านสรุปจาก AI ก่อนกดอนุมัติ — เห็นเฉพาะคนที่อนุมัติใบนี้ได้จริง
+    if (ใบ.status === "รอพิจารณา" && อนุมัติได้) {
+      html += '<div id="กล่องสรุปAI">' +
+        (ใบ.aiSuggestion
+          ? '<div class="alert alert-ai"><b>สรุปโดย AI:</b> ' + esc(ใบ.aiSuggestion) + '</div>' +
+            '<div class="btn-row"><button type="button" class="btn-ghost" id="ปุ่มสรุปAI">สรุปใหม่</button></div>'
+          : '<div class="btn-row"><button type="button" class="btn-ghost" id="ปุ่มสรุปAI">🤖 ให้ AI สรุปใบลานี้</button></div>') +
+        '<div id="เตือนสรุปAI" class="alert alert-error hidden"></div>' +
+        '</div>';
+    }
+
     if (ใบ.status === "รอพิจารณา") {
       var ปุ่มทั้งหมด = "";
       if (อนุมัติได้) {
@@ -107,6 +118,7 @@
       if (อนุมัติได้) {
         document.getElementById("ปุ่มอนุมัติ").addEventListener("click", function () { เปลี่ยนสถานะ("อนุมัติ"); });
         document.getElementById("ปุ่มไม่อนุมัติ").addEventListener("click", function () { เปลี่ยนสถานะ("ไม่อนุมัติ"); });
+        document.getElementById("ปุ่มสรุปAI").addEventListener("click", สรุปด้วยAI);
       }
       if (ลบได้) {
         document.getElementById("ปุ่มลบ").addEventListener("click", ลบใบลา);
@@ -133,6 +145,90 @@
       alert("เปลี่ยนสถานะไม่สำเร็จ: " + ข้อผิดพลาด.message);
       document.getElementById("ปุ่มอนุมัติ").disabled = false;
       document.getElementById("ปุ่มไม่อนุมัติ").disabled = false;
+    });
+  }
+
+  // ── สรุปใบลาด้วย AI แล้วเขียนสรุปกลับลง Firestore ──
+  // เขียนได้แค่ aiSuggestion กับ aiLog เท่านั้น ห้ามแตะ status เด็ดขาด —
+  // สถานะจริงเปลี่ยนได้ทางเดียวคือคนกด ปุ่มอนุมัติ/ปุ่มไม่อนุมัติ ผ่าน เปลี่ยนสถานะ() เท่านั้น
+  function สรุปด้วยAI() {
+    var ปุ่ม = document.getElementById("ปุ่มสรุปAI");
+    var เตือน = document.getElementById("เตือนสรุปAI");
+
+    var คีย์ = window.OPENROUTER_API_KEY || localStorage.getItem("openrouter_api_key");
+    if (!คีย์) {
+      คีย์ = prompt("ใส่ OpenRouter API Key (จะถูกเก็บไว้ในเบราว์เซอร์นี้เท่านั้น ไม่ถูกบันทึกลงไฟล์)");
+      if (!คีย์) return;
+      localStorage.setItem("openrouter_api_key", คีย์);
+    }
+
+    เตือน.classList.add("hidden");
+    ปุ่ม.disabled = true;
+    ปุ่ม.textContent = "กำลังสรุป…";
+
+    var ข้อมูลนำเข้า = {
+      title: ใบ.title,
+      reason: ใบ.reason,
+      leaveTypeName: ใบ.leaveTypeName,
+      startDate: ใบ.startDate,
+      endDate: ใบ.endDate,
+      requesterName: ใบ.requesterName
+    };
+
+    fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + คีย์,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-lite",
+        messages: [
+          {
+            role: "system",
+            content:
+              "คุณคือผู้ช่วยสรุปใบลาให้หัวหน้าอ่านก่อนตัดสินใจอนุมัติหรือไม่อนุมัติ " +
+              "เขียนสรุปสั้น ๆ 2-3 ประโยค เป็นภาษาไทยล้วน ห้ามใช้ markdown โดยอิงจากข้อมูลที่ได้รับเท่านั้น"
+          },
+          {
+            role: "user",
+            content: JSON.stringify(ข้อมูลนำเข้า)
+          }
+        ]
+      })
+    }).then(function (response) {
+      return response.json().then(function (data) {
+        if (!response.ok) {
+          throw new Error((data.error && data.error.message) || ("HTTP " + response.status));
+        }
+        return data;
+      });
+    }).then(function (data) {
+      var สรุป = ((data.choices && data.choices[0] && data.choices[0].message.content) || "").trim();
+      if (!สรุป) {
+        throw new Error("AI ไม่ได้ตอบข้อความกลับมา");
+      }
+      return บันทึกaiLog(ข้อมูลนำเข้า, สรุป).then(function () {
+        return เอกสารใบลา.update({ aiSuggestion: สรุป });
+      }).then(function () {
+        ใบ.aiSuggestion = สรุป;
+        วาดใบลา();
+      });
+    }).catch(function (ข้อผิดพลาด) {
+      บันทึกaiLog(ข้อมูลนำเข้า, "เกิดข้อผิดพลาด: " + ข้อผิดพลาด.message);
+      เตือน.textContent = "⚠️ สรุปไม่สำเร็จ: " + ข้อผิดพลาด.message;
+      เตือน.classList.remove("hidden");
+      ปุ่ม.disabled = false;
+      ปุ่ม.textContent = ใบ.aiSuggestion ? "สรุปใหม่" : "🤖 ให้ AI สรุปใบลานี้";
+    });
+  }
+
+  // ── เก็บ log ทุกครั้งที่เรียก AI ไว้ในโฟลเดอร์ย่อย aiLog ใต้ใบลานี้ ──
+  function บันทึกaiLog(input, output) {
+    return เอกสารใบลา.collection("aiLog").add({
+      input: input,
+      output: output,
+      createdAt: เวลาตอนนี้()
     });
   }
 
